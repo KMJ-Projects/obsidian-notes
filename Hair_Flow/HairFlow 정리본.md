@@ -17,7 +17,6 @@
 
 ## 1. 프로젝트 개요
 
-**HairFlow** : AI를 활용해 헤어 디자이너의 시술을 보조하는 웹 앱 서비스.
 
 ### 주요 기능
 
@@ -115,15 +114,6 @@ hairflow/
 
 ```
 
-
-### 핵심 설계 원칙
-
-- **그룹 라우트 (auth),  (main)**: 레이아웃 분리 (로그인 전/후)
-- **프롬프트 중앙 관리**: lib/prompts.ts 한 파일에서 모든 AI 프롬프트 관리
-- **싱글톤 패턴**: OpenAI 클라이언트를 getOpenAI()로 지연 초기화
-- **이미지 프록시**: Supabase URL → Fal CDN 업로드 → AI 처리 → Supabase Storage 캐싱
-
----
 
 ## 4. 데이터베이스 스키마
 
@@ -320,54 +310,20 @@ Soft studio lighting, individual hair strands visible.
 Fashion magazine quality, no text or watermarks.
 ```
 
-### GPT — JSON 응답 강제
-
-```typescript
-
-// response_format으로 JSON 응답 보장
-
-const response = await openai.chat.completions.create({
-
-  model: 'gpt-4o-mini',
-
-  response_format: { type: 'json_object' },
-
-  messages: [
-
-    { role: 'system', content: '반드시 아래 JSON 형식으로만 응답하세요.' },
-
-    { role: 'user', content: prompt },
-
-  ],
-
-});
-```
-
-### 프롬프트 작성 팁
-
-- **보존할 요소를 명시적으로 나열** — "Keep everything else identical" 보다 구체적으로
-- **JSON 스키마를 프롬프트에 포함** — AI가 정확한 구조로 응답
-- **부정 프롬프트(negative prompt) 활용** — 원하지 않는 결과를 명시
-- **한국어 맥락 포함** — 약제 브랜드, 시술 용어 등 한국 시장 기준 명시
-
 ---
 
-## 8. 트러블슈팅 & 교훈
+## 트러블슈팅 & 교훈
 
 ###  Fal.ai가 Supabase URL 접근 불가
 
 - **원인**: Supabase Storage의 private 버킷 URL은 외부에서 접근 불가
-- **해결**: 
-    
-    uploadToFalCdn() — 이미지를 다운로드 후 Fal CDN에 재업로드
+- **해결**: uploadToFalCdn() — 이미지를 다운로드 후 Fal CDN에 재업로드
 - **교훈**: 외부 AI 서비스에 이미지를 전달할 때는 반드시 **공개 접근 가능한 URL** 필요
 
 ###  Vercel 빌드 시 API 키 없어서 실패
 
 - **원인**: 빌드 타임에 `process.env.OPENAI_API_KEY`를 직접 참조하면 에러
-- **해결**: 
-    
-    getOpenAI() 싱글톤 패턴으로 **런타임에만 초기화**
+- **해결**: getOpenAI() 싱글톤 패턴으로 **런타임에만 초기화**
 - **교훈**: 환경변수가 필요한 코드는 **빌드타임 vs 런타임** 구분 필수
 
 ```typescript
@@ -394,9 +350,7 @@ export function getOpenAI(): OpenAI {
 ###  AI 생성 이미지 URL 만료
 
 - **원인**: Fal.ai/Replicate가 반환하는 URL은 임시 URL (수 시간 후 만료)
-- **해결**: 
-    
-    cacheGeneratedImage() — 생성 직후 Supabase Storage에 영구 저장
+- **해결**: cacheGeneratedImage() — 생성 직후 Supabase Storage에 영구 저장
 - **교훈**: AI 생성 이미지는 **반드시 자체 스토리지에 캐싱**
 
 ###  이미지 생성 시 원본과 괴리감
@@ -408,12 +362,8 @@ export function getOpenAI(): OpenAI {
 ###  Next.js Image 컴포넌트 외부 이미지 에러
 
 - **원인**: 허용되지 않은 hostname의 이미지 사용
-- **해결**: 
-    
-    next.config.ts의 `remotePatterns`에 도메인 추가
-- **교훈**: 새로운 외부 이미지 소스 추가 시 항상 
-    
-    next.config.ts 업데이트
+- **해결**: next.config.ts의 `remotePatterns`에 도메인 추가
+- **교훈**: 새로운 외부 이미지 소스 추가 시 항상 next.config.ts 업데이트
 
 ###  API Route 타임아웃 (이미지 생성 느림)
 
@@ -422,38 +372,6 @@ export function getOpenAI(): OpenAI {
 - **교훈**: AI 호출이 포함된 API는 `maxDuration` 설정 + 클라이언트 측 타임아웃 필수
 
 ---
-
-## 9. 바이브코딩 팁
-
-### 🎯 프로젝트 시작 시
-
-1. **기술 스택 먼저 확정** — AI에게 "Next.js + Supabase + 이 스택으로 만들어줘"
-2. **DB 스키마부터 설계** — 
-    
-    schema.sql 먼저 작성하면 이후 작업이 수월
-3. **타입 정의 먼저** — 
-    
-    types/index.ts에 인터페이스를 먼저 정의하면 AI가 일관된 코드 생성
-4. **프롬프트 중앙 관리 패턴** — 
-    
-    lib/prompts.ts에 모든 AI 프롬프트를 모아두면 수정이 쉬움
-
-
-
-## AI에게 요청할 때 좋은 패턴
-
-### ✅ 구체적인 요청
-
-"고객 상세 페이지에서 '스타일 추천' 버튼을 누르면
-
-1. POST /api/customers/[id]/style-recommendations 호출
-
-2. 로딩 중 스켈레톤 UI 표시
-
-3. 결과를 카드 형태로 표시
-
-4. 각 카드에 AI 생성 이미지 + 어울림 점수 표시"
-
 
 ##  환경변수 관리 체크리스트
 
@@ -509,14 +427,4 @@ import { createAdminClient } from '@/lib/supabase/admin';    // RLS 우회
 
 ---
 
-## 📎 참고 링크
-
-- [Fal.ai Docs](https://fal.ai/docs)
-- [Flux Kontext Pro](https://fal.ai/models/fal-ai/flux-pro/kontext)
-- [Supabase Auth with Next.js](https://supabase.com/docs/guides/auth/server-side/nextjs)
-- [Vercel Cron Jobs](https://vercel.com/docs/cron-jobs)
-- [Toss Payments SDK](https://docs.tosspayments.com/)
-
----
-
-#HairFlow #NextJS #Supabase #FalAI #OpenAI #바이브코딩 #해커톤
+#HairFlow #NextJS #Supabase #FalAI #OpenAI 
